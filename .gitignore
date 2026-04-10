@@ -1,0 +1,9 @@
+wgtray
+wgtray-darwin-*
+wgtray-linux-*
+wgtray-windows-*
+WGTray.app
+*.o
+*.a
+vendor/
+.DS_Store

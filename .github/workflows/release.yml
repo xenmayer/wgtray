@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      - name: Build macOS binary (${{ matrix.goarch }})
+        run: |
+          GOARCH=${{ matrix.goarch }} go build -o dist/wgtray-darwin-${{ matrix.goarch }} .
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wgtray-darwin-${{ matrix.goarch }}
+          path: dist/wgtray-darwin-${{ matrix.goarch }}
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      - name: Install systray dependencies
+        run: sudo apt-get update && sudo apt-get install -y libayatana-appindicator3-dev
+      - name: Build Linux binary
+        run: |
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o dist/wgtray-linux-amd64 .
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wgtray-linux-amd64
+          path: dist/wgtray-linux-amd64
+
+  release:
+    needs: [build-macos, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/wgtray-darwin-amd64/wgtray-darwin-amd64
+            artifacts/wgtray-darwin-arm64/wgtray-darwin-arm64
+            artifacts/wgtray-linux-amd64/wgtray-linux-amd64

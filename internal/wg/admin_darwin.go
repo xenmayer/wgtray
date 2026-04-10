@@ -11,24 +11,42 @@ import (
 	"wgtray/internal/auth"
 )
 
+// brewPath includes Homebrew directories (both Apple Silicon and Intel) so that
+// wg-quick and its dependencies (bash 4+, wg, etc.) are found when the app is
+// launched via Launch Services, which provides only a minimal PATH.
+const brewPath = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+// withPath prepends a PATH export so that shell commands work correctly
+// regardless of the environment they are launched from.
+func withPath(cmd string) string {
+	return "export PATH=" + brewPath + "; " + cmd
+}
+
 // runAsAdmin executes shellCmd with root privileges.
-// It requests Touch ID first; on success uses sudo (NOPASSWD).
-// Falls back to osascript password dialog if sudo is not configured or Touch ID is unavailable.
+// Tries sudo -n first (works silently if the NOPASSWD sudoers rule is installed).
+// If that fails, installs the sudoers rule with a single password prompt and retries.
+// Falls back to an osascript password dialog as a last resort.
 func runAsAdmin(shellCmd string) error {
-	ok, err := auth.Authenticate("WG VPN requires administrator privileges")
-	if err != nil {
-		return runAsAdminOsascript(shellCmd)
-	}
-	if !ok {
-		return fmt.Errorf("authentication cancelled")
-	}
-	out, sudoErr := exec.Command("sudo", "-n", "sh", "-c", shellCmd).CombinedOutput()
-	if sudoErr == nil {
+	patched := withPath(shellCmd)
+
+	if out, err := exec.Command("sudo", "-n", "sh", "-c", patched).CombinedOutput(); err == nil {
 		return nil
+	} else {
+		log.Printf("wgtray: sudo -n failed (%v: %s), attempting setup", err, strings.TrimSpace(string(out)))
 	}
-	log.Printf("wgtray: sudo -n failed (%v), falling back to osascript", sudoErr)
-	_ = out
-	return runAsAdminOsascript(shellCmd)
+
+	// Sudoers rule missing or outdated — install it (one password prompt).
+	if setupErr := auth.RunFirstTimeSetup(); setupErr != nil {
+		log.Printf("wgtray: setup failed (%v), falling back to osascript", setupErr)
+		return runAsAdminOsascript(patched)
+	}
+
+	// Retry after successful setup.
+	if out, err := exec.Command("sudo", "-n", "sh", "-c", patched).CombinedOutput(); err != nil {
+		log.Printf("wgtray: sudo -n still failed after setup (%v: %s), falling back to osascript", err, strings.TrimSpace(string(out)))
+		return runAsAdminOsascript(patched)
+	}
+	return nil
 }
 
 // runAsAdminOsascript requests the password via the native macOS dialog.

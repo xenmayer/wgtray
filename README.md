@@ -53,3 +53,13 @@ cd wgtray
 make build        # produces ./wgtray binary
 make bundle       # produces WGTray.app
 ```
+
+---
+
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [Getting Started](docs/getting-started.md) | Detailed installation, sudoers setup, first run |
+| [Configuration](docs/configuration.md) | Config directory, routing rules, modes |
+| [Architecture](docs/architecture.md) | Internal package structure and data flow |

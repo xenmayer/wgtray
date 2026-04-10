@@ -1,6 +1,6 @@
 #import <LocalAuthentication/LocalAuthentication.h>
 #import <Foundation/Foundation.h>
-#include "touchid.h"
+#include "touchid_darwin.h"
 
 int authenticateTouchID(const char *reason) {
     LAContext *ctx = [[LAContext alloc] init];

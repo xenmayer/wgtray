@@ -4,12 +4,12 @@ package notify
 
 import "log"
 
-// Error logs an error notification (no desktop notification on non-darwin).
+// Error logs an error notification (stub on non-darwin platforms).
 func Error(title, message string) {
-	log.Printf("wgtray [error] %s: %s", title, message)
+	log.Printf("error: %s: %s", title, message)
 }
 
-// Info logs an info notification (no desktop notification on non-darwin).
+// Info logs an info notification (stub on non-darwin platforms).
 func Info(title, message string) {
-	log.Printf("wgtray [info] %s: %s", title, message)
+	log.Printf("info: %s: %s", title, message)
 }

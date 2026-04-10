@@ -1,7 +1,5 @@
 wgtray
-wgtray-darwin-*
-wgtray-linux-*
-wgtray-windows-*
+wgtray-*
 WGTray.app
 *.o
 *.a

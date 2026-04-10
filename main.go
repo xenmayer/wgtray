@@ -21,13 +21,13 @@ func main() {
 		}
 	}
 
-	// First run: install sudoers rule for the %admin group (once, requires password).
-	// Subsequent operations use Touch ID only.
+	// First run: install sudoers rule for %admin group (once, requires password).
+	// All subsequent operations use Touch ID only.
 	if !auth.IsSetupDone() {
 		log.Println("wgtray: first run — installing sudoers rule")
 		if err := auth.RunFirstTimeSetup(); err != nil {
 			log.Printf("wgtray: setup error: %v", err)
-			// Continue — operations will fall back to osascript password dialog
+			// Continue — will fall back to osascript
 		}
 	}
 

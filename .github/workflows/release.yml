@@ -6,31 +6,6 @@ on:
       - 'v*'
 
 jobs:
-  build-macos:
-    runs-on: macos-latest   # arm64; Apple clang cross-compiles amd64 natively
-    strategy:
-      matrix:
-        include:
-          - goarch: arm64
-            cflags: ""
-          - goarch: amd64
-            cflags: "-arch x86_64"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-      - name: Build macOS ${{ matrix.goarch }}
-        env:
-          GOARCH: ${{ matrix.goarch }}
-          CGO_CFLAGS: ${{ matrix.cflags }}
-          CGO_LDFLAGS: ${{ matrix.cflags }}
-        run: go build -ldflags="-s -w" -o wgtray-darwin-${{ matrix.goarch }} .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wgtray-darwin-${{ matrix.goarch }}
-          path: wgtray-darwin-${{ matrix.goarch }}
-
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -42,22 +17,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libayatana-appindicator3-dev
       - name: Build Linux amd64
         run: CGO_ENABLED=1 go build -ldflags="-s -w" -o wgtray-linux-amd64 .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wgtray-linux-amd64
-          path: wgtray-linux-amd64
-
-  release:
-    needs: [build-macos, build-linux]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-      - name: Create GitHub Release
+      - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            wgtray-darwin-amd64/wgtray-darwin-amd64
-            wgtray-darwin-arm64/wgtray-darwin-arm64
-            wgtray-linux-amd64/wgtray-linux-amd64
+          files: wgtray-linux-amd64
+        permissions:
+          contents: write

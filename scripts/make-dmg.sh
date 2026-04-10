@@ -18,6 +18,20 @@ STAGING=$(mktemp -d)
 trap 'rm -rf "$STAGING"' EXIT
 cp -r "$APP" "$STAGING/$APPNAME"
 
+# Install.command — double-click installer that copies the app and strips
+# the quarantine attribute so Gatekeeper doesn't block it on first launch.
+cat > "$STAGING/Install WGTray.command" <<'EOF'
+#!/bin/bash
+set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+echo "🔧 Installing WGTray to /Applications ..."
+cp -r "$SCRIPT_DIR/WGTray.app" /Applications/
+xattr -cr /Applications/WGTray.app
+echo "✅ Done! Launching WGTray..."
+open /Applications/WGTray.app
+EOF
+chmod +x "$STAGING/Install WGTray.command"
+
 if command -v create-dmg &>/dev/null; then
     # Produces a polished DMG with background arrow and window layout.
     create-dmg \

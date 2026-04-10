@@ -45,6 +45,7 @@ bundle: build
 	cp $(BIN) $(APP)/Contents/MacOS/wgtray
 	cp icon/wgtray.icns $(APP)/Contents/Resources/AppIcon.icns
 	cp Info.plist $(APP)/Contents/
+	codesign --sign - --force --deep $(APP)
 
 bundle-universal: build-universal
 	rm -rf $(APP)
@@ -52,6 +53,7 @@ bundle-universal: build-universal
 	cp $(BIN) $(APP)/Contents/MacOS/wgtray
 	cp icon/wgtray.icns $(APP)/Contents/Resources/AppIcon.icns
 	cp Info.plist $(APP)/Contents/
+	codesign --sign - --force --deep $(APP)
 
 bundle-intel: build-amd64
 	rm -rf $(APP_INTEL)
@@ -59,6 +61,7 @@ bundle-intel: build-amd64
 	cp $(BIN_INTEL) $(APP_INTEL)/Contents/MacOS/wgtray
 	cp icon/wgtray.icns $(APP_INTEL)/Contents/Resources/AppIcon.icns
 	cp Info.plist $(APP_INTEL)/Contents/
+	codesign --sign - --force --deep $(APP_INTEL)
 
 bundle-arm: build-arm64
 	rm -rf $(APP_ARM)
@@ -66,6 +69,7 @@ bundle-arm: build-arm64
 	cp $(BIN_ARM) $(APP_ARM)/Contents/MacOS/wgtray
 	cp icon/wgtray.icns $(APP_ARM)/Contents/Resources/AppIcon.icns
 	cp Info.plist $(APP_ARM)/Contents/
+	codesign --sign - --force --deep $(APP_ARM)
 
 # ─── DMG ───────────────────────────────────────────────────────────────────────
 

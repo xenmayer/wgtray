@@ -4,10 +4,9 @@ package auth
 
 import "errors"
 
-// ErrNotAvailable is returned when Touch ID is not supported on this platform.
-var ErrNotAvailable = errors.New("Touch ID not available on this platform")
+var ErrNotAvailable = errors.New("Touch ID not available on this device")
 
-// Authenticate always succeeds on non-darwin platforms (no biometric auth available).
-func Authenticate(_ string) (bool, error) {
+// Authenticate is a stub for non-darwin platforms; always returns true.
+func Authenticate(reason string) (bool, error) {
 	return true, nil
 }

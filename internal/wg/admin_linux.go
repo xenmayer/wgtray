@@ -8,14 +8,16 @@ import (
 	"strings"
 )
 
-// runAsAdmin runs shellCmd with root privileges using pkexec (GUI) or sudo.
+// runAsAdmin executes shellCmd with root privileges using pkexec or sudo.
 func runAsAdmin(shellCmd string) error {
-	if _, err := exec.Command("pkexec", "sh", "-c", shellCmd).CombinedOutput(); err == nil {
+	out, err := exec.Command("pkexec", "sh", "-c", shellCmd).CombinedOutput()
+	if err == nil {
 		return nil
 	}
-	out, err := exec.Command("sudo", "sh", "-c", shellCmd).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	out2, err2 := exec.Command("sudo", "sh", "-c", shellCmd).CombinedOutput()
+	if err2 != nil {
+		return fmt.Errorf("%w: %s", err2, strings.TrimSpace(string(out2)))
 	}
+	_ = out
 	return nil
 }

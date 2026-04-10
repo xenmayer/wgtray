@@ -1,71 +1,55 @@
 # WGTray
 
+**Minimalist WireGuard VPN tray app for macOS**
+
 <p align="center">
-  <img src="icon/icon.png" width="128" alt="WGTray icon" />
+  <img src="icon/icon.png" width="128" alt="WGTray icon">
 </p>
 
-A minimal WireGuard VPN client that lives in the macOS menu bar.
+WGTray lives in the menu bar and manages WireGuard tunnels with per-config routing rules,
+Touch ID authentication, and automatic detection of externally started tunnels.
 
 ## Features
 
-- **Multiple configs** — run several WireGuard configs simultaneously
-- **Routing rules** — per-config exclude (split-tunnel) or include (full-tunnel override) lists of IPs and domains
-- **Touch ID** — authentication via Touch ID before every connect/disconnect (macOS only)
-- **Auto-detect** — shows active interface status in the tray tooltip
-- **Self-contained** — single binary, no daemon, no background service
-
-## Requirements
-
-```bash
-brew install wireguard-tools
-```
-
-macOS 12+ recommended (Touch ID prompt requires LocalAuthentication).
+- Multiple WireGuard configs simultaneously
+- Per-config routing rules: exclude or include specific IPs, domains, or CIDRs
+- Touch ID authentication (macOS)
+- Auto-detects externally started tunnels
+- Menu bar status with connection indicator
 
 ## Install
 
-Download the latest release from [Releases](../../releases) and move `WGTray.app` to `/Applications`.
+**Prerequisites:** `brew install wireguard-tools`
 
-On first launch the app will install a `sudoers` rule so that `wg-quick` can run without a password after Touch ID confirmation.
+1. Download the latest release from [GitHub Releases](../../releases).
+2. Move **WGTray.app** to `/Applications`.
+3. On first launch enter your password once — WGTray installs a `sudoers` rule so that all future operations use Touch ID only.
 
 ## Configuration
 
-Drop your `.conf` WireGuard files into `~/.config/wgtray/configs/`.
+Place `.conf` files in `~/.config/wgtray/`, or use **Add Config…** from the tray menu.
 
-Optionally place a `.rules.json` alongside each config to control routing:
+Routing rules live in `~/.config/wgtray/<name>.rules.json`:
 
 ```json
 {
   "mode": "exclude",
-  "entries": [
-    "192.168.1.0/24",
-    "example.com"
-  ]
+  "entries": ["192.168.1.0/24", "example.com", "10.0.0.1"]
 }
 ```
 
-| Field | Values | Description |
-|-------|--------|-------------|
-| `mode` | `exclude` / `include` | `exclude` = route only these IPs/domains outside the VPN; `include` = route only these through the VPN |
-| `entries` | list of IPs/CIDRs/domains | Domains are resolved at connect time |
+| Mode | Behaviour |
+|------|-----------|
+| `exclude` | Route listed IPs/domains **directly** (bypass VPN) |
+| `include` | Route **only** listed IPs/domains through VPN |
 
 ## Build from source
 
+**Prerequisites:** Go 1.20+, Xcode Command Line Tools
+
 ```bash
-git clone git@github.com:xenmayer/wgtray.git
+git clone https://github.com/your-username/wgtray.git
 cd wgtray
-make bundle          # builds WGTray.app in ./dist/
-make install         # copies to /Applications
+make build        # produces ./wgtray binary
+make bundle       # produces WGTray.app
 ```
-
-### Cross-compile
-
-```bash
-make build-linux     # outputs dist/wgtray-linux-amd64
-```
-
-Linux build requires `libayatana-appindicator3-dev`.
-
-## License
-
-MIT

@@ -5,7 +5,7 @@ package auth
 /*
 #cgo LDFLAGS: -framework LocalAuthentication -framework Foundation
 #include <stdlib.h>
-#include "touchid.h"
+#include "touchid_darwin.h"
 */
 import "C"
 import (
@@ -15,8 +15,8 @@ import (
 
 var ErrNotAvailable = errors.New("Touch ID not available on this device")
 
-// Authenticate shows a Touch ID prompt with the given reason.
-// Returns true on success, false on user cancel, ErrNotAvailable if Touch ID is not supported.
+// Authenticate shows the Touch ID dialog with the given reason string.
+// Returns true on success, false on denial, ErrNotAvailable if Touch ID is absent.
 func Authenticate(reason string) (bool, error) {
 	cr := C.CString(reason)
 	defer C.free(unsafe.Pointer(cr))

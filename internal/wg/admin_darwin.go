@@ -11,10 +11,9 @@ import (
 	"wgtray/internal/auth"
 )
 
-// runAsAdmin runs shellCmd with root privileges.
-// Prompts Touch ID first; on success uses sudo -n (NOPASSWD sudoers rule).
-// Falls back to osascript password dialog if sudo -n is not configured.
-// Falls back directly to osascript if Touch ID is unavailable.
+// runAsAdmin executes shellCmd with root privileges.
+// It requests Touch ID first; on success uses sudo (NOPASSWD).
+// Falls back to osascript password dialog if sudo is not configured or Touch ID is unavailable.
 func runAsAdmin(shellCmd string) error {
 	ok, err := auth.Authenticate("WG VPN requires administrator privileges")
 	if err != nil {
@@ -32,7 +31,7 @@ func runAsAdmin(shellCmd string) error {
 	return runAsAdminOsascript(shellCmd)
 }
 
-// runAsAdminOsascript requests password elevation via the native macOS dialog.
+// runAsAdminOsascript requests the password via the native macOS dialog.
 func runAsAdminOsascript(shellCmd string) error {
 	escaped := strings.ReplaceAll(shellCmd, `\`, `\\`)
 	escaped = strings.ReplaceAll(escaped, `"`, `\"`)

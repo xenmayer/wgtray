@@ -1,7 +1,10 @@
 wgtray
 wgtray-*
 WGTray.app
+WGTray-*.app
+*.dmg
 *.o
 *.a
 vendor/
 .DS_Store
+dist/

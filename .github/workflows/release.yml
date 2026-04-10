@@ -6,33 +6,30 @@ on:
       - 'v*'
 
 jobs:
-  build-macos-amd64:
-    runs-on: macos-13   # x86_64 runner — CGO cross-compile not supported
+  build-macos:
+    runs-on: macos-latest   # arm64; Apple clang cross-compiles amd64 natively
+    strategy:
+      matrix:
+        include:
+          - goarch: arm64
+            cflags: ""
+          - goarch: amd64
+            cflags: "-arch x86_64"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-      - name: Build macOS amd64
-        run: go build -ldflags="-s -w" -o wgtray-darwin-amd64 .
+      - name: Build macOS ${{ matrix.goarch }}
+        env:
+          GOARCH: ${{ matrix.goarch }}
+          CGO_CFLAGS: ${{ matrix.cflags }}
+          CGO_LDFLAGS: ${{ matrix.cflags }}
+        run: go build -ldflags="-s -w" -o wgtray-darwin-${{ matrix.goarch }} .
       - uses: actions/upload-artifact@v4
         with:
-          name: wgtray-darwin-amd64
-          path: wgtray-darwin-amd64
-
-  build-macos-arm64:
-    runs-on: macos-latest   # arm64 runner
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-      - name: Build macOS arm64
-        run: go build -ldflags="-s -w" -o wgtray-darwin-arm64 .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wgtray-darwin-arm64
-          path: wgtray-darwin-arm64
+          name: wgtray-darwin-${{ matrix.goarch }}
+          path: wgtray-darwin-${{ matrix.goarch }}
 
   build-linux:
     runs-on: ubuntu-latest
@@ -51,7 +48,7 @@ jobs:
           path: wgtray-linux-amd64
 
   release:
-    needs: [build-macos-amd64, build-macos-arm64, build-linux]
+    needs: [build-macos, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write

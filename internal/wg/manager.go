@@ -174,28 +174,23 @@ func (m *Manager) Connect(cfg config.Config) error {
 		return nil
 	}
 
-	// Build the shell command(s) to run with admin privileges.
-	cmds := []string{wgQuickBin + " up " + shellQuote(upConfigPath)}
-	if cfg.Rules.Mode == "exclude" && state.Gateway != "" {
-		for _, cidr := range ResolveEntries(cfg.Rules.Entries) {
-			cmds = append(cmds, fmt.Sprintf("route add -net %s %s", cidr, state.Gateway))
-		}
-	}
+	// Bring up the tunnel first (separate from route commands so a route
+	// failure does not leave the tunnel up but untracked).
+	upCmd := wgQuickBin + " up " + shellQuote(upConfigPath)
 
-	if err := runAsAdmin(strings.Join(cmds, " && ")); err != nil {
+	if err := runAsAdmin(upCmd); err != nil {
 		// Tunnel might already be running (e.g. started externally and not
 		// detected because sudo -n was unavailable for wg show).
-		// Bring it down first and retry.
 		if strings.Contains(err.Error(), "already exists") {
 			log.Printf("wgtray: tunnel %q already exists, disconnecting first", cfg.Name)
-			downCmd := wgQuickBin + " down " + shellQuote(cfg.FilePath)
+			downCmd := wgQuickBin + " down " + shellQuote(upConfigPath)
 			if downErr := runAsAdmin(downCmd); downErr != nil {
 				if state.TempPath != "" {
 					os.Remove(state.TempPath)
 				}
 				return fmt.Errorf("connect %s: down existing tunnel: %w", cfg.Name, downErr)
 			}
-			if retryErr := runAsAdmin(strings.Join(cmds, " && ")); retryErr != nil {
+			if retryErr := runAsAdmin(upCmd); retryErr != nil {
 				if state.TempPath != "" {
 					os.Remove(state.TempPath)
 				}
@@ -206,6 +201,18 @@ func (m *Manager) Connect(cfg config.Config) error {
 				os.Remove(state.TempPath)
 			}
 			return fmt.Errorf("connect %s: %w", cfg.Name, err)
+		}
+	}
+
+	// Add exclude-mode routes separately; failures are logged but non-fatal
+	// (the tunnel is already up and must remain tracked).
+	if cfg.Rules.Mode == "exclude" && state.Gateway != "" {
+		routeCmds := buildRouteAddCmds(ResolveEntries(cfg.Rules.Entries), state.Gateway)
+		if len(routeCmds) > 0 {
+			// Join with "; " so one failing route doesn't abort the rest.
+			if err := runAsAdmin(strings.Join(routeCmds, "; ")); err != nil {
+				log.Printf("wgtray: exclude routes for %s (non-fatal): %v", cfg.Name, err)
+			}
 		}
 	}
 
@@ -232,14 +239,18 @@ func (m *Manager) Disconnect(name string) error {
 		downConfigPath = state.TempPath
 	}
 
-	cmds := []string{wgQuickBin + " down " + shellQuote(downConfigPath)}
+	// Remove exclude-mode routes first (non-fatal).
 	if state.Rules.Mode == "exclude" && len(state.Rules.Entries) > 0 {
-		for _, cidr := range ResolveEntries(state.Rules.Entries) {
-			cmds = append(cmds, "route delete -net "+cidr)
+		routeCmds := buildRouteDeleteCmds(ResolveEntries(state.Rules.Entries))
+		if len(routeCmds) > 0 {
+			if err := runAsAdmin(strings.Join(routeCmds, "; ")); err != nil {
+				log.Printf("wgtray: delete routes for %s (non-fatal): %v", name, err)
+			}
 		}
 	}
 
-	if err := runAsAdmin(strings.Join(cmds, " && ")); err != nil {
+	downCmd := wgQuickBin + " down " + shellQuote(downConfigPath)
+	if err := runAsAdmin(downCmd); err != nil {
 		return fmt.Errorf("disconnect %s: %w", name, err)
 	}
 
@@ -269,4 +280,38 @@ func (m *Manager) DisconnectAll() {
 // shellQuote wraps s in single quotes suitable for embedding in a shell command.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// isIPv6CIDR returns true if cidr is an IPv6 address block.
+func isIPv6CIDR(cidr string) bool {
+	return strings.Contains(cidr, ":")
+}
+
+// buildRouteAddCmds returns shell commands to add routes via gateway.
+// Uses "route add -inet6" for IPv6 and "route add -net" for IPv4.
+// Each command is suffixed with "|| true" so failures don't abort the chain.
+func buildRouteAddCmds(cidrs []string, gateway string) []string {
+	cmds := make([]string, 0, len(cidrs))
+	for _, cidr := range cidrs {
+		if isIPv6CIDR(cidr) {
+			cmds = append(cmds, fmt.Sprintf("route add -inet6 %s %s || true", cidr, gateway))
+		} else {
+			cmds = append(cmds, fmt.Sprintf("route add -net %s %s || true", cidr, gateway))
+		}
+	}
+	return cmds
+}
+
+// buildRouteDeleteCmds returns shell commands to delete routes.
+// Each command is suffixed with "|| true" so failures don't abort the chain.
+func buildRouteDeleteCmds(cidrs []string) []string {
+	cmds := make([]string, 0, len(cidrs))
+	for _, cidr := range cidrs {
+		if isIPv6CIDR(cidr) {
+			cmds = append(cmds, "route delete -inet6 "+cidr+" || true")
+		} else {
+			cmds = append(cmds, "route delete -net "+cidr+" || true")
+		}
+	}
+	return cmds
 }

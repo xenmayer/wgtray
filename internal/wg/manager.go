@@ -34,9 +34,9 @@ func NewManager() *Manager {
 // ActiveInterfaces returns the names of currently active WireGuard interfaces.
 // It tries without sudo first; falls back to sudo -n (non-interactive).
 func ActiveInterfaces() ([]string, error) {
-	out, err := exec.Command("wg", "show", "interfaces").Output()
+	out, err := exec.Command(wgBin, "show", "interfaces").Output()
 	if err != nil {
-		out, err = exec.Command("sudo", "-n", "wg", "show", "interfaces").Output()
+		out, err = exec.Command("sudo", "-n", wgBin, "show", "interfaces").Output()
 		if err != nil {
 			return nil, nil
 		}
@@ -183,10 +183,30 @@ func (m *Manager) Connect(cfg config.Config) error {
 	}
 
 	if err := runAsAdmin(strings.Join(cmds, " && ")); err != nil {
-		if state.TempPath != "" {
-			os.Remove(state.TempPath)
+		// Tunnel might already be running (e.g. started externally and not
+		// detected because sudo -n was unavailable for wg show).
+		// Bring it down first and retry.
+		if strings.Contains(err.Error(), "already exists") {
+			log.Printf("wgtray: tunnel %q already exists, disconnecting first", cfg.Name)
+			downCmd := wgQuickBin + " down " + shellQuote(cfg.FilePath)
+			if downErr := runAsAdmin(downCmd); downErr != nil {
+				if state.TempPath != "" {
+					os.Remove(state.TempPath)
+				}
+				return fmt.Errorf("connect %s: down existing tunnel: %w", cfg.Name, downErr)
+			}
+			if retryErr := runAsAdmin(strings.Join(cmds, " && ")); retryErr != nil {
+				if state.TempPath != "" {
+					os.Remove(state.TempPath)
+				}
+				return fmt.Errorf("connect %s: %w", cfg.Name, retryErr)
+			}
+		} else {
+			if state.TempPath != "" {
+				os.Remove(state.TempPath)
+			}
+			return fmt.Errorf("connect %s: %w", cfg.Name, err)
 		}
-		return fmt.Errorf("connect %s: %w", cfg.Name, err)
 	}
 
 	m.active[cfg.Name] = state

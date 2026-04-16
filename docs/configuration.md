@@ -66,8 +66,9 @@ Each entry in the `entries` array can be:
 | Bare IPv4 | `10.0.0.1` | `10.0.0.1/32` |
 | Bare IPv6 | `2001:db8::1` | `2001:db8::1/128` |
 | Domain name | `example.com` | DNS lookup → all resolved IPs as `/32` or `/128` |
+| Wildcard domain | `*.example.com` | DNS lookup of `example.com` → all resolved IPs as `/32` or `/128` |
 
-> **Note:** Domain names are resolved at **connect time**. If the domain resolves to different IPs later, the routes are not updated until you reconnect.
+> **Note:** Domain names (including wildcard entries) are resolved at **connect time**. Wildcard syntax (`*.domain.com`) routes the base domain — it does not match arbitrary subdomains at runtime; only the base IP(s) are routed. If the domain resolves to different IPs later, the routes are not updated until you reconnect.
 
 ### How Each Mode Works
 
@@ -117,21 +118,21 @@ Each entry in the `entries` array can be:
 
 Click **Edit Rules…** under any config name in the menu bar to open the interactive rules editor (macOS only).
 
-The editor presents a dialog showing:
-- **Current mode** — `EXCLUDE (blacklist)` or `INCLUDE (whitelist)`
-- **Numbered list** of current rule entries, or `(no rules)` if the list is empty
+The editor shows a **list-centric dialog** with action rows at the top, a visual separator, and then your numbered rule entries:
 
-**Available actions:**
+| Row | Description |
+|-----|-------------|
+| `[ Add New Rule ]` | Open a prompt to type a new IP, CIDR, domain, or `*.domain` |
+| `[ Change Mode: … ]` | Toggle between `EXCLUDE (blacklist)` and `INCLUDE (whitelist)` — updates immediately |
+| `[ Apply & Reconnect ]` | Save all changes and reconnect the tunnel if active |
+| `────────────` | Visual separator (selecting it reopens the list) |
+| `  N.  <entry>` | Click any numbered rule to open an **Edit / Delete** submenu |
 
-| Action | Description |
-|--------|-------------|
-| **Add Rule** | Enter an IP, CIDR, or domain name to append to the rule list |
-| **Delete Rule** | Pick an existing rule from a list to remove it |
-| **Change Mode** | Switch between `exclude (blacklist)` and `include (whitelist)` modes |
-| **Apply & Reconnect** | Save all changes and automatically reconnect the tunnel if it is active |
-| **Cancel** | Discard all unsaved changes and close the editor |
+Wildcard entries are displayed with a `「wildcard」` label, e.g. `  1.  *.example.com  「wildcard」`.
 
-**Apply & Reconnect** writes the new rules to disk and, if the tunnel is currently active (including tunnels started externally), disconnects and reconnects it so the new rules take effect immediately.
+**Valid entry formats:** IP address, CIDR block, bare domain, or wildcard domain (`*.domain.com`). The editor validates the input and rejects anything that does not match one of these formats.
+
+**Apply & Reconnect** writes the new rules to disk and, if the tunnel is currently active (including tunnels started externally), disconnects and reconnects it so the new rules take effect immediately. Click **Done** to close without applying.
 
 ### Manual editing
 

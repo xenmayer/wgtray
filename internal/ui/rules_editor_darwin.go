@@ -5,7 +5,9 @@ package ui
 import (
 	"fmt"
 	"log"
+	"net"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -17,8 +19,20 @@ import (
 // editorMu prevents opening multiple rules editor dialogs simultaneously.
 var editorMu sync.Mutex
 
-// openRulesEditor opens a multi-step AppleScript dialog for editing routing
-// rules for the named config. It is safe to call from any goroutine.
+// List item constants for the main rules editor screen.
+const (
+	listItemAdd       = "[ Add New Rule ]"
+	listItemApply     = "[ Apply & Reconnect ]"
+	listItemSeparator = "────────────────────────────────"
+)
+
+// listItemMode formats the dynamic mode action row.
+func listItemMode(rules config.Rules) string {
+	return "[ Change Mode: " + formatMode(rules.Mode) + " ]"
+}
+
+// openRulesEditor opens the list-centric AppleScript rules editor for the
+// named config. It is safe to call from any goroutine.
 func openRulesEditor(name string, mgr *wg.Manager) {
 	if !editorMu.TryLock() {
 		log.Printf("wgtray: ui: rules editor already open, ignoring request for %q", name)
@@ -54,121 +68,220 @@ func openRulesEditor(name string, mgr *wg.Manager) {
 		rules.Entries = []string{}
 	}
 
-	// Main editor loop.
+	// Main editor loop — re-shows the list after every action.
 	for {
-		summary := formatRulesSummary(rules)
+		items := buildListItems(rules)
+		log.Printf("wgtray: ui: rules editor list shown for %q, %d entries", name, len(rules.Entries))
 
-		// build the action list for choose from list
+		var quoted []string
+		for _, it := range items {
+			quoted = append(quoted, applescriptQuoteItem(it))
+		}
+		listLiteral := "{" + strings.Join(quoted, ", ") + "}"
+
 		script := fmt.Sprintf(
-			`choose from list {"Add Rule", "Delete Rule", "Change Mode", "Apply & Reconnect"} `+
+			`choose from list %s `+
 				`with title "Rules Editor — %s" `+
-				`with prompt %s `+
-				`OK button name "Select" cancel button name "Cancel"`,
+				`with prompt "Mode: %s\n\nSelect an action or click a rule to edit:" `+
+				`OK button name "Select" cancel button name "Done"`,
+			listLiteral,
 			applescriptEscape(name),
-			applescriptQuote(summary),
+			applescriptEscape(formatMode(rules.Mode)),
 		)
 
 		result, err := runAppleScript(script)
 		if err != nil || strings.TrimSpace(result) == "false" {
-			// User clicked Cancel or dialog was dismissed.
 			log.Printf("wgtray: ui: rules editor closed without applying for %q", name)
 			return
 		}
 
-		action := strings.TrimSpace(result)
-		log.Printf("wgtray: ui: rules editor action %q for %q", action, name)
+		item := strings.TrimSpace(result)
+		log.Printf("wgtray: ui: rules editor item selected: %q", item)
 
-		switch action {
-		case "Add Rule":
-			rules = addRule(name, rules)
+		switch itemAction(item) {
+		case "separator":
+			// Separator was accidentally selected — re-show list.
+			continue
 
-		case "Delete Rule":
-			if len(rules.Entries) == 0 {
-				showAlert("No rules to delete.")
+		case "add":
+			entry, ok := editRuleEntry(name, "")
+			if !ok {
 				continue
 			}
-			rules = deleteRule(name, rules)
+			if !isValidEntry(entry) {
+				log.Printf("wgtray: ui: invalid entry rejected: %q", entry)
+				showAlert(fmt.Sprintf("Invalid entry: %q\nExpected IP, CIDR, domain, or *.domain.", entry))
+				continue
+			}
+			log.Printf("wgtray: ui: add rule %q to %q", entry, name)
+			rules.Entries = append(rules.Entries, entry)
 
-		case "Change Mode":
-			rules = changeMode(name, rules)
+		case "mode":
+			if rules.Mode == "include" {
+				rules.Mode = "exclude"
+			} else {
+				rules.Mode = "include"
+			}
+			log.Printf("wgtray: ui: mode changed to %q for %q", rules.Mode, name)
 
-		case "Apply & Reconnect":
+		case "apply":
 			applyRules(name, rules, currentCfg.FilePath, mgr)
 			return
+
+		case "rule":
+			idx := ruleIndexFromItem(item, rules.Entries)
+			if idx < 0 {
+				log.Printf("wgtray: ui: rules editor: could not find entry for item %q", item)
+				continue
+			}
+			oldEntry := rules.Entries[idx]
+			rules = handleRuleAction(name, rules, idx, oldEntry)
 		}
 	}
 }
 
-// addRule presents a dialog to enter a new rule and appends it to rules.
-func addRule(name string, rules config.Rules) config.Rules {
-	script := `display dialog "Enter rule (IP, CIDR, or domain):" default answer "" with title "Add Rule"`
-	result, err := runAppleScript(script)
-	if err != nil {
-		// Cancelled.
-		return rules
-	}
-	// result looks like: "button returned:OK, text returned:<entry>"
-	entry := extractTextReturned(result)
-	entry = strings.TrimSpace(entry)
-	if entry == "" {
-		return rules
-	}
-	log.Printf("wgtray: ui: add rule %q to %q", entry, name)
-	rules.Entries = append(rules.Entries, entry)
-	return rules
-}
-
-// deleteRule presents a list dialog to pick a rule to remove.
-func deleteRule(name string, rules config.Rules) config.Rules {
-	// Build a quoted AppleScript list from entries.
-	var items []string
-	for _, e := range rules.Entries {
-		items = append(items, applescriptQuoteItem(e))
-	}
-	listLiteral := "{" + strings.Join(items, ", ") + "}"
-
+// handleRuleAction shows the Edit|Delete submenu for a selected rule and
+// applies the chosen action.
+func handleRuleAction(name string, rules config.Rules, idx int, entry string) config.Rules {
 	script := fmt.Sprintf(
-		`choose from list %s with title "Delete Rule" with prompt "Select rule to delete:" `+
-			`OK button name "Delete" cancel button name "Cancel"`,
-		listLiteral,
+		`choose from list {"Edit", "Delete"} `+
+			`with title "Rule: %s" `+
+			`with prompt "Choose action for rule:" `+
+			`OK button name "Select" cancel button name "Cancel"`,
+		applescriptEscape(entry),
 	)
 	result, err := runAppleScript(script)
 	if err != nil || strings.TrimSpace(result) == "false" {
 		return rules
 	}
-	target := strings.TrimSpace(result)
-	log.Printf("wgtray: ui: delete rule %q from %q", target, name)
 
-	var remaining []string
-	for _, e := range rules.Entries {
-		if e != target {
-			remaining = append(remaining, e)
+	action := strings.TrimSpace(result)
+	log.Printf("wgtray: ui: rule action %q for entry [%d] %q in %q", action, idx, entry, name)
+
+	switch action {
+	case "Edit":
+		newEntry, ok := editRuleEntry(name, entry)
+		if !ok {
+			return rules
 		}
+		if !isValidEntry(newEntry) {
+			log.Printf("wgtray: ui: invalid entry rejected: %q", newEntry)
+			showAlert(fmt.Sprintf("Invalid entry: %q\nExpected IP, CIDR, domain, or *.domain.", newEntry))
+			return rules
+		}
+		log.Printf("wgtray: ui: edit rule [%d] %q → %q", idx, entry, newEntry)
+		rules.Entries[idx] = newEntry
+
+	case "Delete":
+		log.Printf("wgtray: ui: delete rule [%d] %q from %q", idx, entry, name)
+		rules.Entries = append(rules.Entries[:idx], rules.Entries[idx+1:]...)
 	}
-	if remaining == nil {
-		remaining = []string{}
-	}
-	rules.Entries = remaining
+
 	return rules
 }
 
-// changeMode presents a list dialog to pick a new mode.
-func changeMode(name string, rules config.Rules) config.Rules {
-	script := `choose from list {"exclude (blacklist)", "include (whitelist)"} ` +
-		`with title "Change Mode" with prompt "Select tunnel mode:" ` +
-		`OK button name "Select" cancel button name "Cancel"`
+// buildListItems constructs the full items slice for the main choose-from-list
+// dialog: action rows, a visual separator, then numbered rule entries.
+func buildListItems(rules config.Rules) []string {
+	items := []string{
+		listItemAdd,
+		listItemMode(rules),
+		listItemApply,
+		listItemSeparator,
+	}
+	for i, e := range rules.Entries {
+		label := fmt.Sprintf("  %d.  %s", i+1, e)
+		if strings.HasPrefix(e, "*.") {
+			label += "  「wildcard」"
+		}
+		items = append(items, label)
+	}
+	return items
+}
+
+// itemAction returns the semantic action for a selected list item string.
+// Returns one of: "add", "mode", "apply", "separator", "rule".
+func itemAction(item string) string {
+	switch {
+	case item == listItemAdd:
+		return "add"
+	case strings.HasPrefix(item, "[ Change Mode:"):
+		return "mode"
+	case item == listItemApply:
+		return "apply"
+	case item == listItemSeparator:
+		return "separator"
+	default:
+		return "rule"
+	}
+}
+
+// ruleIndexFromItem parses an item string of the form "  N.  <entry>[  「wildcard」]"
+// and returns the 0-based index into entries. Returns -1 when not found.
+func ruleIndexFromItem(item string, entries []string) int {
+	trimmed := strings.TrimSpace(item)
+	for i, e := range entries {
+		expected := fmt.Sprintf("%d.  %s", i+1, e)
+		// The item may have a trailing wildcard indicator.
+		if trimmed == expected || strings.HasPrefix(trimmed, expected) {
+			return i
+		}
+	}
+	return -1
+}
+
+// editRuleEntry shows a pre-filled display dialog for entering or editing a
+// rule. Returns (entry, true) on OK, or ("", false) on Cancel.
+func editRuleEntry(name, current string) (string, bool) {
+	prompt := "Enter rule (IP, CIDR, domain, or *.domain):"
+	script := fmt.Sprintf(
+		`display dialog %s default answer %s with title "Edit Rule"`,
+		applescriptQuote(prompt),
+		applescriptQuote(current),
+	)
 	result, err := runAppleScript(script)
-	if err != nil || strings.TrimSpace(result) == "false" {
-		return rules
+	if err != nil {
+		log.Printf("wgtray: ui: edit rule entry cancelled for %q", name)
+		return "", false
 	}
-	choice := strings.TrimSpace(result)
-	if strings.HasPrefix(choice, "exclude") {
-		rules.Mode = "exclude"
-	} else {
-		rules.Mode = "include"
+	entry := strings.TrimSpace(extractTextReturned(result))
+	log.Printf("wgtray: ui: edit rule entry input %q for %q", entry, name)
+	return entry, true
+}
+
+// isValidEntry returns true when s is a plausible routing rule: an IP address,
+// CIDR block, bare domain, or wildcard domain (*.example.com).
+func isValidEntry(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
 	}
-	log.Printf("wgtray: ui: mode changed to %q for %q", rules.Mode, name)
-	return rules
+	// Reject entries that contain whitespace.
+	if strings.ContainsAny(s, " \t") {
+		return false
+	}
+	// Valid CIDR?
+	if _, _, err := net.ParseCIDR(s); err == nil {
+		return true
+	}
+	// Valid bare IP?
+	if net.ParseIP(s) != nil {
+		return true
+	}
+	// Wildcard domain: *.something.tld
+	if strings.HasPrefix(s, "*.") {
+		return isValidDomain(s[2:])
+	}
+	// Bare domain.
+	return isValidDomain(s)
+}
+
+// domainRe matches a hostname/domain made of dot-separated alphanumeric labels.
+var domainRe = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$`)
+
+// isValidDomain reports whether s is a syntactically valid domain name.
+func isValidDomain(s string) bool {
+	return len(s) > 0 && len(s) <= 253 && domainRe.MatchString(s)
 }
 
 // applyRules saves rules and reconnects if the tunnel is active.
@@ -235,7 +348,7 @@ func runAppleScript(script string) (string, error) {
 	return strings.TrimRight(string(out), "\n"), nil
 }
 
-// formatRulesSummary builds the prompt text shown in the main editor dialog.
+// formatRulesSummary builds a human-readable summary of the current rules.
 func formatRulesSummary(rules config.Rules) string {
 	modeLabel := formatMode(rules.Mode)
 	var sb strings.Builder
@@ -249,7 +362,6 @@ func formatRulesSummary(rules config.Rules) string {
 			sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, e))
 		}
 	}
-	sb.WriteString("\nChoose an action:")
 	return sb.String()
 }
 

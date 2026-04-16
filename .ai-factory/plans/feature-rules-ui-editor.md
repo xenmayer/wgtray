@@ -1,7 +1,7 @@
 # Rules UI Editor
 
-**Branch:** `feature/rules-ui-editor`  
-**Date:** 2026-04-16  
+**Branch:** `feature/rules-ui-editor`
+**Date:** 2026-04-16
 **Mode:** Full
 
 ## Summary
@@ -20,7 +20,7 @@ Add a native macOS UI (via osascript AppleScript dialogs) for managing per-confi
 
 ## Roadmap Linkage
 
-- **Milestone:** none  
+- **Milestone:** none
 - **Rationale:** Skipped by user — no roadmap file exists in this project
 
 ---
@@ -35,7 +35,7 @@ ui (tray.go / rules_editor_darwin.go)
   └── wg (manager.go)     — disconnect + reconnect
 ```
 
-Platform-specific UI code goes in `_darwin.go`; non-Darwin stub in `_other.go`.  
+Platform-specific UI code goes in `_darwin.go`; non-Darwin stub in `_other.go`.
 No new external dependencies — all dialogs use `osascript` (already used in `addConfig()`).
 
 ---
@@ -83,25 +83,25 @@ No new external dependencies — all dialogs use `osascript` (already used in `a
    - Numbered list of current rules (entries), or `(no rules)` if empty
    - Use `choose from list {"Add Rule", "Delete Rule", "Change Mode", "Apply & Reconnect"}` with a `Cancel button` for action selection.
    - **Important:** macOS `display dialog` supports max 3 buttons. Do NOT use `display dialog` with 5 buttons — it will fail at runtime. Use `choose from list` for the action menu instead.
-   
-3. **Add rule** — `display dialog "Enter rule (IP, CIDR, or domain):" default answer ""`  
+
+3. **Add rule** — `display dialog "Enter rule (IP, CIDR, or domain):" default answer ""`
    - Trim whitespace, reject empty input, append to `rules.Entries`
    - Return to main editor dialog
 
-4. **Delete rule** — `choose from list` showing all entries with `Select rule to delete:`  
+4. **Delete rule** — `choose from list` showing all entries with `Select rule to delete:`
    - On selection: remove the chosen entry from `rules.Entries`
    - Return to main editor dialog
 
-5. **Change Mode** — `choose from list {"exclude (blacklist)", "include (whitelist)"}`  
+5. **Change Mode** — `choose from list {"exclude (blacklist)", "include (whitelist)"}`
    - On selection: update `rules.Mode` to `"exclude"` or `"include"`
    - Return to main editor dialog
 
-6. **Apply & Reconnect** —  
-   a. Call `config.SaveRules(name, rules)` — persist to JSON  
-   b. Detect active tunnel using the same pattern as `toggleTunnel`: `mgr.IsActive(name) || wg.InterfaceForConfig(cfg.FilePath) != ""`  
-   c. If active: call `mgr.Disconnect(name)`, reload config from disk via `config.LoadConfigs()`, then `mgr.Connect(updatedCfg)`  
-   d. Call `notify.Info("Rules applied", name)`  
-   e. Call `doRefresh()` to update menu state  
+6. **Apply & Reconnect** —
+   a. Call `config.SaveRules(name, rules)` — persist to JSON
+   b. Detect active tunnel using the same pattern as `toggleTunnel`: `mgr.IsActive(name) || wg.InterfaceForConfig(cfg.FilePath) != ""`
+   c. If active: call `mgr.Disconnect(name)`, reload config from disk via `config.LoadConfigs()`, then `mgr.Connect(updatedCfg)`
+   d. Call `notify.Info("Rules applied", name)`
+   e. Call `doRefresh()` to update menu state
    f. Close dialog
 
    **Critical:** Always reload config from disk after saving (not from in-memory struct) — ensures include-mode temp configs are rebuilt with new rules.
@@ -117,10 +117,10 @@ No new external dependencies — all dialogs use `osascript` (already used in `a
 - `log.Printf("wgtray: ui: rules editor closed without applying for %q", name)` on cancel
 - Wrap all errors: `fmt.Errorf("rules editor %s: %w", name, err)`
 
-**osascript helper:**  
+**osascript helper:**
 Add a private helper `runAppleScript(script string) (string, error)` that wraps `exec.Command("osascript", "-e", script)`. Reuse for all dialogs.
 
-**Concurrency guard:**  
+**Concurrency guard:**
 Add a package-level `var editorMu sync.Mutex` (or per-slot `atomic.Bool`) to prevent opening multiple editor dialogs for the same config simultaneously. Check/acquire before entering the dialog loop, release on exit.
 
 ---

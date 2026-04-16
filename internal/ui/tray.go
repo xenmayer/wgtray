@@ -47,7 +47,7 @@ func OnReady() {
 		s := &slot{}
 		s.mainItem = systray.AddMenuItem("", "")
 		s.mainItem.Hide()
-		s.editItem = s.mainItem.AddSubMenuItem("Edit Rules...", "Edit routing rules for this config")
+		s.editItem = s.mainItem.AddSubMenuItem("Edit Rules...", "Open rules editor for this config")
 		s.editItem.Hide()
 		slots[i] = s
 		go watchSlot(s)
@@ -102,7 +102,8 @@ func watchSlot(s *slot) {
 			if name == "" {
 				continue
 			}
-			openRulesFile(name)
+			log.Printf("wgtray: ui: edit rules clicked for %q", name)
+			go openRulesEditor(name, mgr)
 		}
 	}
 }
@@ -167,18 +168,6 @@ func toggleTunnel(name string) {
 		notify.Error("Connect failed", fmt.Sprintf("%s: %v", name, err))
 	} else {
 		notify.Info("Connected", name)
-	}
-}
-
-// openRulesFile opens (or creates) the rules JSON for name in TextEdit.
-func openRulesFile(name string) {
-	path, err := config.EnsureRulesFile(name)
-	if err != nil {
-		log.Printf("wgtray: ensure rules file %s: %v", name, err)
-		return
-	}
-	if err := exec.Command("open", "-e", path).Start(); err != nil {
-		log.Printf("wgtray: open rules file: %v", err)
 	}
 }
 

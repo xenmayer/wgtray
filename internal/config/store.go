@@ -2,6 +2,8 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,4 +108,21 @@ func CopyConfigFile(src, name string) error {
 	}
 	dst := filepath.Join(ConfigDir(), name+".conf")
 	return os.WriteFile(dst, data, 0o600)
+}
+
+// SaveRules persists rules for the named config to <ConfigDir>/<name>.rules.json.
+func SaveRules(name string, rules Rules) error {
+	path := filepath.Join(ConfigDir(), name+".rules.json")
+	log.Printf("wgtray: config: saving rules for %q to %s", name, path)
+
+	data, err := json.MarshalIndent(rules, "", "  ")
+	if err != nil {
+		return fmt.Errorf("save rules %s: %w", name, err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("save rules %s: %w", name, err)
+	}
+
+	log.Printf("wgtray: config: rules saved for %q", name)
+	return nil
 }

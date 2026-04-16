@@ -2,12 +2,26 @@ package wg
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os/exec"
 	"strings"
 
 	"wgtray/internal/config"
 )
+
+// isWildcardEntry reports whether s is a wildcard domain entry of the form
+// "*.something". A bare "*" with no dot and suffix is not considered a valid
+// wildcard entry.
+func isWildcardEntry(s string) bool {
+	return strings.HasPrefix(s, "*.") && len(s) > 2
+}
+
+// wildcardBaseDomain strips the leading "*." prefix from a wildcard entry.
+// It should only be called on strings where isWildcardEntry returns true.
+func wildcardBaseDomain(s string) string {
+	return strings.TrimPrefix(s, "*.")
+}
 
 // ResolveEntries resolves domain names to IPs and normalises all entries to
 // CIDR notation. Duplicate entries are suppressed.
@@ -42,6 +56,13 @@ func ResolveEntries(entries []string) []string {
 				add(entry + "/128")
 			}
 			continue
+		}
+
+		// Wildcard domain? Strip prefix and resolve base domain via DNS.
+		if isWildcardEntry(entry) {
+			base := wildcardBaseDomain(entry)
+			log.Printf("wgtray: wg: wildcard entry %q → resolving base domain %q", entry, base)
+			entry = base
 		}
 
 		// DNS lookup.

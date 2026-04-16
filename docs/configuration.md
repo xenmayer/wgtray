@@ -113,13 +113,35 @@ Each entry in the `entries` array can be:
 
 ## Editing Rules
 
-Click **Edit Rules…** under any config name in the menu to open the `.rules.json` file in TextEdit. Save the file and reconnect to apply the new rules.
+### Rules Editor UI
 
-Or edit directly:
+Click **Edit Rules…** under any config name in the menu bar to open the interactive rules editor (macOS only).
+
+The editor presents a dialog showing:
+- **Current mode** — `EXCLUDE (blacklist)` or `INCLUDE (whitelist)`
+- **Numbered list** of current rule entries, or `(no rules)` if the list is empty
+
+**Available actions:**
+
+| Action | Description |
+|--------|-------------|
+| **Add Rule** | Enter an IP, CIDR, or domain name to append to the rule list |
+| **Delete Rule** | Pick an existing rule from a list to remove it |
+| **Change Mode** | Switch between `exclude (blacklist)` and `include (whitelist)` modes |
+| **Apply & Reconnect** | Save all changes and automatically reconnect the tunnel if it is active |
+| **Cancel** | Discard all unsaved changes and close the editor |
+
+**Apply & Reconnect** writes the new rules to disk and, if the tunnel is currently active (including tunnels started externally), disconnects and reconnects it so the new rules take effect immediately.
+
+### Manual editing
+
+Rules can also be edited directly as JSON:
 
 ```bash
 open -e ~/.config/wgtray/my-vpn.rules.json
 ```
+
+Save the file and reconnect manually to apply the new rules.
 
 ## Permissions
 

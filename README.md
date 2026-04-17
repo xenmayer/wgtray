@@ -1,65 +1,95 @@
 # WGTray
 
-**Minimalist WireGuard VPN tray app for macOS**
+> Minimal macOS WireGuard tray app with per-config split tunneling.
 
 <p align="center">
   <img src="icon/icon.png" width="128" alt="WGTray icon">
 </p>
 
-WGTray lives in the menu bar and manages WireGuard tunnels with per-config routing rules,
-Touch ID authentication, and automatic detection of externally started tunnels.
+WGTray is a small menu bar app for people who already use WireGuard on macOS and want better route-level control without a heavy VPN client.
 
-## Features
+It manages multiple configs, supports include/exclude routing rules per config, uses Touch ID after the initial setup, and detects tunnels that were started outside the app.
 
-- Multiple WireGuard configs simultaneously
-- Per-config routing rules: exclude or include specific IPs, domains, or CIDRs
-- Touch ID authentication (macOS)
-- Auto-detects externally started tunnels
-- Menu bar status with connection indicator
+## Why WGTray
 
-## Install
+- Keep a work tunnel active while local subnets, devices, or domains stay outside the VPN.
+- Route only specific company traffic through WireGuard instead of tunneling everything.
+- Manage several WireGuard configs from the menu bar without losing visibility into externally started tunnels.
 
-**Prerequisites:** `brew install wireguard-tools`
+## Who It's For
 
-1. Download the latest release from [GitHub Releases](../../releases).
-2. Move **WGTray.app** to `/Applications`.
-3. On first launch enter your password once — WGTray installs a `sudoers` rule so that all future operations use Touch ID only.
+- macOS users who already have WireGuard `.conf` files.
+- Developers, infra engineers, and power users who need split tunneling per config.
+- People who want a lightweight tray workflow instead of a full VPN dashboard.
 
-## Configuration
+If you just want a generic plug-and-play VPN client, WGTray is probably not the right tool.
 
-Place `.conf` files in `~/.config/wgtray/`, or use **Add Config…** from the tray menu.
+## Key Features
 
-Routing rules live in `~/.config/wgtray/<name>.rules.json`:
+- Multiple WireGuard configs active at the same time.
+- Per-config include/exclude rules for domains, IPs, and CIDRs.
+- Rules editor in the tray menu for faster updates.
+- Touch ID authentication after the one-time admin setup.
+- Automatic detection of tunnels started outside WGTray.
+- Connected/disconnected menu bar status with logs and notifications.
+
+## Common Use Cases
+
+| Use case | Mode | Example |
+|----------|------|---------|
+| Work VPN with local bypass | `exclude` | Keep `192.168.0.0/16` and `printer.local` outside the tunnel |
+| Company-only routing | `include` | Send `internal.mycompany.com` and `10.10.0.0/16` through the VPN |
+| Multiple environments | mixed | Keep several WireGuard configs available from the menu bar |
+
+## Quick Start
+
+**Prerequisite:** `brew install wireguard-tools`
+
+1. Download the latest app from [GitHub Releases](https://github.com/xenmayer/wgtray/releases).
+2. Move `WGTray.app` to `/Applications`.
+3. Open it once and enter your password so WGTray can install its one-time sudoers rule.
+4. Add a WireGuard `.conf` file with **Add Config...** or copy it into `~/.config/wgtray/`.
+5. Optional: attach routing rules to `~/.config/wgtray/<name>.rules.json` and connect from the tray.
+
+## Routing Example
 
 ```json
 {
   "mode": "exclude",
-  "entries": ["192.168.1.0/24", "example.com", "10.0.0.1"]
+  "entries": [
+    "192.168.1.0/24",
+    "printer.local",
+    "example.com"
+  ]
 }
 ```
 
-| Mode | Behaviour |
-|------|-----------|
-| `exclude` | Route listed IPs/domains **directly** (bypass VPN) |
-| `include` | Route **only** listed IPs/domains through VPN |
+| Mode | Behavior |
+|------|----------|
+| `exclude` | Route listed IPs/domains directly and keep everything else on the VPN |
+| `include` | Route only the listed IPs/domains through the VPN |
 
-## Build from source
+## Build From Source
 
 **Prerequisites:** Go 1.20+, Xcode Command Line Tools
 
 ```bash
-git clone https://github.com/your-username/wgtray.git
+git clone https://github.com/xenmayer/wgtray.git
 cd wgtray
-make build        # produces ./wgtray binary
-make bundle       # produces WGTray.app
+make build
+make bundle
 ```
-
----
 
 ## Documentation
 
 | Guide | Description |
 |-------|-------------|
-| [Getting Started](docs/getting-started.md) | Detailed installation, sudoers setup, first run |
-| [Configuration](docs/configuration.md) | Config directory, routing rules, modes |
+| [Getting Started](docs/getting-started.md) | Installation, sudoers setup, first run, verification |
+| [Configuration](docs/configuration.md) | Config directory, routing rules, modes, rules editor |
 | [Architecture](docs/architecture.md) | Internal package structure and data flow |
+
+## Notes
+
+- WGTray is macOS-first. Linux support is partial.
+- Routing rules resolve domains at connect time, so reconnect to refresh changed IPs.
+- Config files are standard WireGuard configs; WGTray does not replace your provider workflow.

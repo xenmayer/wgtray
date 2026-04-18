@@ -31,7 +31,7 @@ func IsSetupDone() bool {
 // IsSetupCurrent reports whether the installed sudoers rule matches the
 // current version. Uses a local marker file to avoid needing sudo for the check.
 func IsSetupCurrent() bool {
-	markerPath := filepath.Join(configDir(), ".sudoers-version")
+	markerPath := filepath.Join(configDirFn(), ".sudoers-version")
 	data, err := os.ReadFile(markerPath)
 	if err != nil {
 		return false
@@ -41,16 +41,16 @@ func IsSetupCurrent() bool {
 
 // writeSudoersMarker records the current sudoers version after a successful setup.
 func writeSudoersMarker() {
-	markerPath := filepath.Join(configDir(), ".sudoers-version")
+	markerPath := filepath.Join(configDirFn(), ".sudoers-version")
 	if err := os.WriteFile(markerPath, []byte(sudoersVersion), 0o644); err != nil {
 		log.Printf("wgtray: auth: failed to write sudoers version marker: %v", err)
 	}
 }
 
-// configDir returns the wgtray config directory. Duplicated here to avoid
+// configDirFn returns the wgtray config directory. Duplicated here to avoid
 // importing internal/config (which would create a circular dependency
-// since wg already imports config).
-func configDir() string {
+// since wg already imports config). Variable for testability.
+var configDirFn = func() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ".config/wgtray"

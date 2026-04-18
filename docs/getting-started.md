@@ -28,7 +28,9 @@ On the **first launch**, WGTray needs a one-time password to install a sudoers r
 /etc/sudoers.d/wgtray
 ```
 
-This rule allows `wg-quick`, `route`, and `sh` to run without a password for the `%admin` group. Once installed, all future tunnel operations use **Touch ID only** — no password dialogs.
+This rule allows `wg`, `wg-quick`, `route`, and `sh` to run without a password for the `%admin` group. It covers both Intel (`/usr/local/bin`) and Apple Silicon (`/opt/homebrew/bin`) Homebrew paths. Once installed, all future tunnel operations use **Touch ID only** — no password dialogs.
+
+> **Upgrading from an older version?** WGTray will detect the outdated sudoers rule on launch and prompt for your password once to update it with the new ARM64-compatible paths. No manual action is needed.
 
 > **No rule installed?** WGTray will fall back to an AppleScript administrator-privileges prompt for every connect/disconnect. Run the app once from the terminal (`open /Applications/WGTray.app`) if the first-run dialog doesn't appear.
 

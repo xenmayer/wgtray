@@ -11,6 +11,7 @@ import (
 
 	"fyne.io/systray"
 	"wgtray/icon"
+	"wgtray/internal/auth"
 	"wgtray/internal/config"
 	"wgtray/internal/notify"
 	"wgtray/internal/wg"
@@ -61,6 +62,16 @@ func OnReady() {
 	mQuit = systray.AddMenuItem("Quit", "Quit WG Tray")
 
 	go watchStaticItems()
+
+	// Upgrade outdated sudoers rule (e.g. missing ARM64 Homebrew paths).
+	if auth.IsSetupDone() && !auth.IsSetupCurrent() {
+		log.Println("wgtray: auth: sudoers rule exists but missing ARM64 paths, will re-install")
+		if err := auth.RunFirstTimeSetup(); err != nil {
+			log.Printf("wgtray: auth: sudoers upgrade failed: %v", err)
+		} else {
+			log.Println("wgtray: auth: sudoers rule upgraded successfully")
+		}
+	}
 
 	// Immediate refresh + periodic 3-second polling.
 	doRefresh()

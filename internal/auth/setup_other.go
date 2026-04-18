@@ -7,6 +7,11 @@ func IsSetupDone() bool {
 	return true
 }
 
+// IsSetupCurrent always returns true on non-darwin platforms.
+func IsSetupCurrent() bool {
+	return true
+}
+
 // RunFirstTimeSetup is a no-op on non-darwin platforms.
 func RunFirstTimeSetup() error {
 	return nil
